@@ -19,21 +19,33 @@ func (k KotlinPackageName) Parts() []string {
 	return strings.Split(k.RawValue, ".")
 }
 
-type importListener struct {
+type listener struct {
 	*parser.BaseKotlinParserListener
-	logger Logger
+	p *Processor
+}
 
-	Imports []KotlinPackageName
+func (l *listener) EnterPackageHeader(ctx *parser.PackageHeaderContext) {
+	p := l.p
+	for i := 0; i < ctx.GetChildCount(); i++ {
+		child := ctx.GetChild(i)
+		switch val := child.(type) {
+		case *parser.IdentifierContext:
+			p.metadata.packageName.RawValue += val.GetText()
+		}
+	}
 }
 
 // EnterImportList is called when production importList is entered.
-func (s *importListener) EnterImportList(ctx *parser.ImportListContext) {
+func (l *listener) EnterImportList(ctx *parser.ImportListContext) {
+	p := l.p
+	logger := p.cfg.logger
 	count := ctx.GetChildCount()
-	s.logger.Info("Found imports length %d\n", count)
-	s.Imports = make([]KotlinPackageName, 0, count)
+	logger.Info("Found imports length %d\n", count)
+	p.metadata.imports = make([]KotlinPackageName, 0, count)
 }
 
-func (s *importListener) EnterImportHeader(ctx *parser.ImportHeaderContext) {
+func (l *listener) EnterImportHeader(ctx *parser.ImportHeaderContext) {
+	p := l.p
 	count := ctx.GetChildCount()
 	var ans KotlinPackageName
 	for i := 0; i < count; i++ {
@@ -52,11 +64,8 @@ func (s *importListener) EnterImportHeader(ctx *parser.ImportHeaderContext) {
 			ans.RawValue += val.GetText()
 		}
 	}
-	s.Imports = append(s.Imports, ans)
+	p.metadata.imports = append(p.metadata.imports, ans)
 }
-
-// ExitImportList is called when production importList is exited.
-func (s *importListener) ExitImportList(ctx *parser.ImportListContext) {}
 
 type errorListener struct {
 	err error
@@ -78,12 +87,10 @@ func (el *errorListener) ReportAttemptingFullContext(recognizer antlr.Parser, df
 func (el *errorListener) ReportContextSensitivity(recognizer antlr.Parser, dfa *antlr.DFA, startIndex, stopIndex, prediction int, configs antlr.ATNConfigSet) {
 }
 
-func (p *Processor) GetImports() ([]KotlinPackageName, error) {
-	p.el.err = nil
-	logger := p.cfg.logger
-	listener := &importListener{
-		logger: logger,
-	}
-	antlr.ParseTreeWalkerDefault.Walk(listener, p.file)
-	return listener.Imports, p.el.err
+func (p *Processor) GetImports() []KotlinPackageName {
+	return p.metadata.imports
+}
+
+func (p *Processor) GetPackageName() KotlinPackageName {
+	return p.metadata.packageName
 }

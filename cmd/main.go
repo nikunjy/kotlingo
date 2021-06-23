@@ -13,9 +13,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	imports, err := processor.GetImports()
-	if err != nil {
-		log.Fatal(err)
-	}
+	imports := processor.GetImports()
 	fmt.Println(imports)
+	fmt.Println(processor.GetPackageName())
 }

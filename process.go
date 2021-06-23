@@ -6,6 +6,10 @@ import (
 )
 
 type Processor struct {
+	metadata struct {
+		imports     []KotlinPackageName
+		packageName KotlinPackageName
+	}
 	file parser.IKotlinFileContext
 
 	el *errorListener
@@ -33,9 +37,18 @@ func NewProcessor(fileName string, opts ...Option) (*Processor, error) {
 	//p.AddErrorListener(antlr.NewDiagnosticErrorListener(true))
 	p.BuildParseTrees = true
 	file := p.KotlinFile()
-	return &Processor{
+	ret := &Processor{
 		file: file,
 		el:   el,
 		cfg:  &cfg,
-	}, nil
+	}
+
+	listener := &listener{
+		p: ret,
+	}
+	antlr.ParseTreeWalkerDefault.Walk(listener, ret.file)
+	if el.err != nil {
+		return nil, err
+	}
+	return ret, nil
 }
